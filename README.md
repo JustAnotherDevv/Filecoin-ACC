@@ -1,5 +1,12 @@
 # Access Control & Compliance (ACC) Service
 
+## Why do we want to build this
+
+As Filecoin becomes composable decentralized cloud, it needs reusable on-chain access control + compliance layer that any builders can stop re-implementing:
+- IAM(Identity & Access Management)
+- Data lifecycle & expiry rules
+- GDPR logic from scratch(current erasure process is bad with no cryptographic proof of key destruction, no standard retention/expiry flow, no audit receipts)
+
 ## Overview
 
 Portable, on-chain policy + compliance layer that any Filecoin Service (warm storage, retrieval, compute-over-data) can call to: 
@@ -33,4 +40,96 @@ ACC Service Contract (Solidity on FVM):
 #### How it composes with Filecoin:
 
 - Uses Filecoin Pay rails, and validator veto to tie money to policy-compliant reads/writes. 
+
+### Lifecycle Flows
+
+- Grant access
+  - Publisher uploads data via FS warm storage. Gateway encrypts and registers PolicyAnchor on-chain
+  - Publisher funds USDFC and approves ACC as Operator (Filecoin Pay) to create a rail to the Service Provider
+  - Requester presents verifiable credentials(e.g. KYC / age / geo) with selective disclosure
+- Read / Settle
+  - Requester fetchesdata, gateway validates PDP status
+- Revoke / Modify
+  - Controller updates policy (e.g., access is expired or price is raised)
+ 
+```mermaid
+flowchart TD
+  subgraph PUB
+    P1[Publisher App]
+  end
+
+  subgraph CLIENT
+    C1[Client App]
+    SDK[Synapse SDK]
+  end
+
+  subgraph GATEWAY
+    G1[Auth DID VC]
+    G2[Policy Engine]
+    G3[Resources Encryption]
+    G4[Metering Logs]
+    G5[Evidence Bundler]
+  end
+
+  subgraph ONCHAIN
+    A1[PolicyAnchor]
+    A2[AccessValidator]
+    A3[ErasureRegistry]
+    V1[Pay Accounts Rails]
+    V2[Pay Validator]
+    V3[Pay Operator]
+    PDC[PDP Verifier]
+  end
+
+  subgraph STORAGE
+    W1[Warm Storage]
+  end
+
+  %% Upload and policy registration
+  P1 --> SDK
+  SDK --> W1
+  P1 --> A1
+  P1 --> V1
+  V1 --> V3
+
+  %% Access request
+  C1 --> G1
+  G1 --> G2
+  G2 --> G3
+  G3 --> C1
+
+  %% Retrieve and meter
+  C1 --> W1
+  W1 --> C1
+  C1 --> G4
+  G4 --> A2
+  W1 --> PDC
+  PDC --> A2
+
+  %% Settlement
+  A2 --> V2
+  V2 --> V1
+  V1 --> W1
+
+  %% Erasure
+  P1 --> G2
+  G2 --> A1
+  G3 --> G5
+  G5 --> A3
+```
+ 
+## Roadmap
+
+1. Product Design
+2. Creating Specs
+   - Researching on current state of PDP, WarmStorageService, Filecoin Pay
+   - Detailed scope for architecture of on-chain and off-chain components
+   - Research for encryption that will be used for encrypting / reencrypting / erasure
+   - Specs for ready to use Policy Kits based on Verifiable Credentials access
+3. Proof Of Concept
+   - On-chain `PolicyAnchor`
+   - Typescript wrapper around Synapse SDK for request access to data / accessing data based on Verifiable Credentials
+   - MVP for erasure mechanism
+4. Further Development
+   - On-chain `ErasureRegistry` with proof of erasure
 
