@@ -1,0 +1,24 @@
+# Access Control & Compliance (ACC) Service
+
+## Overview
+
+Portable, on-chain policy + compliance layer that any Filecoin Service (warm storage, retrieval, compute-over-data) can call to: 
+- (1) grant/revoke access
+- (2) take GDPR style erasure actions with cryptographic erasure and auditable receipts
+- (3) handle pay per access using Filecoin Pay rails
+
+### What we’re building
+
+#### Smart contract layer (FVM)
+
+ACC Service Contract (Solidity on FVM):
+
+- PolicyAnchor: minimal on-chain registry mapping resourceCID (or CommP) → current PolicyID and status(Active/Revoked/Erased).
+
+- AccessValidator (Filecoin Pay-compatible): called during settleRail(). It checks a signed AccessReceipt from the off-chain gateway (contains policy decision, metering counters, PDP status, and payer/payee IDs). If valid, it authorizes payout; if not, it reduces/zeroes settlement. 
+
+- ErasureRegistry: emits and stores ErasureReceipt records (hash-linked to evidence bundle in warm storage), with fields for key-destruction attestations, policy revocation time, index de-listing proofs, and validator signatures. That by itself grounds GDPR Art. 17 workflows. 
+
+#### How it composes with Filecoin:
+
+- Uses Filecoin Pay rails, and validator veto to tie money to policy-compliant reads/writes. 
